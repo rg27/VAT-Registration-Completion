@@ -1,4 +1,5 @@
-node_modules/
+# Ignore everything in dist/
+dist/
 
-dist/*
-!dist/VAT Registration Completion.zip
+# Ignore node_modules
+node_modules/
