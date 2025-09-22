@@ -1,0 +1,4 @@
+node_modules/
+
+dist/*
+!dist/VAT Registration Completion.zip
