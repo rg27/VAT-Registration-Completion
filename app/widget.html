@@ -1,88 +1,85 @@
 <!DOCTYPE html>
 <html>
   <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <script src="https://live.zwidgets.com/js-sdk/1.2/ZohoEmbededAppSDK.min.js"></script>
-      <link rel="stylesheet" type="text/css" href="css/index.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://live.zwidgets.com/js-sdk/1.2/ZohoEmbededAppSDK.min.js"></script>
+    <link rel="stylesheet" type="text/css" href="css/index.css">
   </head>
   <body>
 
     <div class="form-container">
       <form id="record-form" novalidate>
-      <label for="tax-registration-number">Tax Registration Number (TRN) <span style="color: red;">*</span></label>
-      <input type="text" id="tax-registration-number" name="tax-registration-number"/>
-      <span class="error-message" id="error-tax-registration-number"></span>
+        <label for="tax-registration-number">Tax Registration Number (TRN) <span style="color: red;">*</span></label>
+        <input type="text" id="tax-registration-number" name="tax-registration-number" />
+        <span class="error-message" id="error-tax-registration-number"></span>
 
-      <label for="vat-certificate" style="margin-top: 16px; display: block;">VAT Tax Certificate 
-        <span title="Drag and drop your file here, or click “Choose File” to upload the VAT Tax Certificate." style="cursor: help; color: #555;">&#9432;</span>
-        <span style="color: red;">*</span>
-      </label>
-      <input type="file" id="vat-certificate" name="vat-certificate" accept=".pdf,.jpg,.jpeg,.png" required />
+        <label for="vat-certificate">VAT Tax Certificate 
+          <span title="Drag and drop your file here, or click “Choose File” to upload the VAT Tax Certificate." style="cursor: help; color: #555;">&#9432;</span>
+          <span style="color: red;">*</span>
+        </label>
+        <input type="file" id="vat-certificate" name="vat-certificate" accept=".pdf,.jpg,.jpeg,.png" required />
+        <span class="error-message" id="error-vat-certificate"></span>
+        
+        <label for="effective-date">Effective Date of Registration <span style="color: red;">*</span></label>
+        <input type="date" id="effective-date" name="effective-date" required />
+        <span class="error-message" id="error-effective-date"></span>
 
-      <span class="error-message" id="error-vat-certificate" style="color: red; font-size: 12px;"></span>
-      <span class="error-message" id="error-tax-period-vat"></span>
-      <label for="effective-date">Effective Date of Registration <span style="color: red;">*</span></label>
-      <input type="date" id="effective-date" name="effective-date" required />
-      <span class="error-message" id="error-effective-date"></span>
-      <label for="tax-period-vat" style="margin-top: 16px; display: block;">Tax Period VAT <span style="color: red;">*</span></label>
-      <select id="tax-period-vat" name="tax-period-vat">
-        <option value="" disabled selected>Select ...</option>
-        <option value="Q1: 1 Jan - 31 Mar, Q2: 1 Apr - 30 Jun, Q3: 1 Jul - 30 Sep, Q4: 1 Oct - 31 Dec">Q1: 1 Jan - 31 Mar, Q2: 1 Apr - 30 Jun, Q3: 1 Jul - 30 Sep, Q4: 1 Oct - 31 Dec</option>
-        <option value="Q1: 1 Feb - 30 Apr, Q2: 1 May - 31 Jul, Q3: 1 Aug - 31 Oct, Q4: 1 Nov - 31 Jan">Q1: 1 Feb - 30 Apr, Q2: 1 May - 31 Jul, Q3: 1 Aug - 31 Oct, Q4: 1 Nov - 31 Jan</option>
-        <option value="Q1: 1 Mar - 31 May, Q2: 1 Jun - 31 Aug, Q3: 1 Sep - 30 Nov, Q4: 1 Dec - 28/29 Feb">Q1: 1 Mar - 31 May, Q2: 1 Jun - 31 Aug, Q3: 1 Sep - 30 Nov, Q4: 1 Dec - 28/29 Feb</option>
-      </select>
+        <label for="tax-period-vat">Tax Period VAT <span style="color: red;">*</span></label>
+        <select id="tax-period-vat" name="tax-period-vat">
+          <option value="" disabled selected>Select ...</option>
+          <option value="Q1: 1 Jan - 31 Mar, Q2: 1 Apr - 30 Jun, Q3: 1 Jul - 30 Sep, Q4: 1 Oct - 31 Dec">Q1: 1 Jan - 31 Mar, Q2: 1 Apr - 30 Jun, Q3: 1 Jul - 30 Sep, Q4: 1 Oct - 31 Dec</option>
+          <option value="Q1: 1 Feb - 30 Apr, Q2: 1 May - 31 Jul, Q3: 1 Aug - 31 Oct, Q4: 1 Nov - 31 Jan">Q1: 1 Feb - 30 Apr, Q2: 1 May - 31 Jul, Q3: 1 Aug - 31 Oct, Q4: 1 Nov - 31 Jan</option>
+          <option value="Q1: 1 Mar - 31 May, Q2: 1 Jun - 31 Aug, Q3: 1 Sep - 30 Nov, Q4: 1 Dec - 28/29 Feb">Q1: 1 Mar - 31 May, Q2: 1 Jun - 31 Aug, Q3: 1 Sep - 30 Nov, Q4: 1 Dec - 28/29 Feb</option>
+        </select>
+        <span class="error-message" id="error-tax-period-vat"></span>
 
-      <label for="date-of-issue" style="margin-top: 16px; display: block;">Date of Issue <span style="color: red;">*</span></label>
-      <input type="date" id="date-of-issue" name="date-of-issue" required />
-      <span class="error-message" id="error-date-of-issue"></span>
+        <label for="date-of-issue">Date of Issue <span style="color: red;">*</span></label>
+        <input type="date" id="date-of-issue" name="date-of-issue" required />
+        <span class="error-message" id="error-date-of-issue"></span>
+        
+        <div class="quarterly-dates-container">
+          <div class="quarter-field">
+            <label for="first-qtr-return-due-date">1st Qtr Return Due Date <span style="color: red;">*</span></label>
+            <input type="date" id="first-qtr-return-due-date" name="first-qtr-return-due-date" required />
+            <span class="error-message" id="error-first-qtr-return-due-date"></span>
+          </div>
 
-      <!-- First -->
-      <label for="first-qtr-return-due-date" style="margin-top: 16px; display: block;">1st Qtr Return Due Date
-        <span title="What is the 1st quarterly return?" style="cursor: help; color: #555;">&#9432;</span>
-        <span style="color: red;">*</span>
-      </label>
-      <input type="date" id="first-qtr-return-due-date" name="first-qtr-return-due-date" required />
-      <span class="error-message" id="error-first-qtr-return-due-date"></span>
-     
-      <!-- Second -->
-      <label for="second-qtr-return-due-date" style="margin-top: 16px; display: block;">2nd Qtr Return Due Date
-        <span title="What is the 2nd quarterly return?" style="cursor: help; color: #555;">&#9432;</span>
-        <span style="color: red;">*</span>
-      </label>
-      <input type="date" id="second-qtr-return-due-date" name="second-qtr-return-due-date" required />
-      <span class="error-message" id="error-second-qtr-return-due-date"></span>
-    
-      <!-- Third -->
-      <label for="third-qtr-return-due-date" style="margin-top: 16px; display: block;">3rd Qtr Return Due Date
-        <span title="What is the 3rd quarterly return?" style="cursor: help; color: #555;">&#9432;</span>
-        <span style="color: red;">*</span>
-      </label>
-      <input type="date" id="third-qtr-return-due-date" name="third-qtr-return-due-date" required />
-      <span class="error-message" id="error-third-qtr-return-due-date"></span>
-
-       <!-- Forth -->
-      <label for="forth-qtr-return-due-date" style="margin-top: 16px; display: block;">4th Qtr Return Due Date
-        <span title="What is the 4th quarterly return?" style="cursor: help; color: #555;">&#9432;</span>
-        <span style="color: red;">*</span>
-      </label>
-      <input type="date" id="forth-qtr-return-due-date" name="forth-qtr-return-due-date" required />
-      <span class="error-message" id="error-forth-qtr-return-due-date"></span>
-      <button class="submit-button" type="submit" id="submit_button_id" onclick="complete_trigger()">Submit</button>
+          <div class="quarter-field">
+            <label for="second-qtr-return-due-date">2nd Qtr Return Due Date <span style="color: red;">*</span></label>
+            <input type="date" id="second-qtr-return-due-date" name="second-qtr-return-due-date" required />
+            <span class="error-message" id="error-second-qtr-return-due-date"></span>
+          </div>
+        
+          <div class="quarter-field">
+            <label for="third-qtr-return-due-date">3rd Qtr Return Due Date <span style="color: red;">*</span></label>
+            <input type="date" id="third-qtr-return-due-date" name="third-qtr-return-due-date" required />
+            <span class="error-message" id="error-third-qtr-return-due-date"></span>
+          </div>
+          
+          <div class="quarter-field">
+            <label for="forth-qtr-return-due-date">4th Qtr Return Due Date <span style="color: red;">*</span></label>
+            <input type="date" id="forth-qtr-return-due-date" name="forth-qtr-return-due-date" required />
+            <span class="error-message" id="error-forth-qtr-return-due-date"></span>
+          </div>
+        </div>
+        <label for="pay-giban">Pay (GIBAN) <span style="color: red;">*</span></label>
+        <input type="text" id="pay-giban" name="pay-giban" required/>
+        <span class="error-message" id="error-pay-giban"></span>
+        <button class="submit-button" type="submit" id="submit_button_id">Submit</button>
       </form>
     </div>
 
-    <!-- Upload overlay/modal -->
     <div id="upload-buffer" class="upload-overlay hidden" aria-live="polite" role="status">
-    <div class="upload-box">
+      <div class="upload-box">
         <div class="upload-icon">&#128228;</div>
         <div class="upload-title" id="upload-title">Uploading your file...</div>
         <div class="progress-wrapper">
-        <div class="progress-bar-background">
+          <div class="progress-bar-background">
             <div id="upload-progress" class="progress-bar-fill animate"></div>
+          </div>
         </div>
-        </div>
-    </div>
+      </div>
     </div>
 
     <div>
