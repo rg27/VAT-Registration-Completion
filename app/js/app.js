@@ -14,7 +14,15 @@ ZOHO.embeddedApp.on("PageLoad", async (entity) => {
 
         const applicationData = appResponse.data[0];
         app_id = applicationData.id;
-        account_id = applicationData.Account_Name.id;
+
+        // Check for Account ID and handle if missing
+        if (!applicationData.Account_Name || !applicationData.Account_Name.id) {
+            console.error("Application record is missing a linked Account ID. Cannot proceed with data fetch.");
+            // Prevent setting account_id if null/undefined
+            // The submission logic will catch this later, but useful to log now.
+        } else {
+            account_id = applicationData.Account_Name.id;
+        }
 
         ZOHO.CRM.UI.Resize({ height: "100%"}).then(function(data) {
             console.log("Resize result:", data);
@@ -309,6 +317,7 @@ async function update_record(event = null) {
     const taxRegNo = document.getElementById("tax-registration-number")?.value;
     const taxPeriodVat = document.getElementById("tax-period-vat")?.value;
     const payGiban = document.getElementById("pay-giban")?.value;
+    const safe_account_id = account_id ? account_id.trim() : "";
 
     // Validation checks for all required fields
     if (!taxRegNo) {
@@ -352,6 +361,12 @@ async function update_record(event = null) {
         showError("pay-giban", "Pay (GIBAN) is required.");
         hasError = true;
     }
+
+    if (!safe_account_id) {
+        showError("submit_button_id", "Error: Associated Account ID is missing. Cannot proceed.");
+        hasError = true;
+        console.error("FATAL ERROR: Account ID is missing.");
+    }
 
     if (hasError) {
         if (submitBtn) {
@@ -400,21 +415,41 @@ async function update_record(event = null) {
             }
         });
 
-        await ZOHO.CRM.API.updateRecord({
-            Entity: "Accounts",
-            APIData: {
-                id: account_id,
-                TRN_Number:taxRegNo,
-                VAT_Status: "Active",
-                Tax_Period_VAT: taxPeriodVat,
-                Effective_Registration_Date_VAT: effectiveDate,
-                st_Qtr_VAT_return_DD: firstQtrReturnDueDate,
-                nd_Qtr_VAT_return_DD: secondQtrReturnDueDate,
-                rd_Qtr_VAT_return_DD: thirdQtrReturnDueDate,
-                VAT_Pay_GIBAN: payGiban,
-                th_Qtr_VAT_return_DD: forthQtrReturnDueDate,
-            }
-        });
+        // Pass ALL required data to the Deluge function via JSON string
+        const func_name = "ta_vatr_complete_to_auth_update_account";
+        const req_data = {
+            "arguments": JSON.stringify({
+                "account_id": safe_account_id,
+                "trn_number": taxRegNo,
+                "tax_period_vat": taxPeriodVat,
+                "effective_reg_vat_dd": effectiveDate,
+                "vat_pay_giban": payGiban,
+                "st_qtr_vat_retrun_dd": firstQtrReturnDueDate,
+                "nd_qtr_vat_retrun_dd": secondQtrReturnDueDate,
+                "rd_qtr_vat_retrun_dd": thirdQtrReturnDueDate,
+                "th_qtr_vat_retrun_dd": forthQtrReturnDueDate,
+
+            })
+        };
+
+        const accountResponse = await ZOHO.CRM.FUNCTIONS.execute(func_name, req_data);
+        console.log("Account Update Function Response:", accountResponse);
+
+        // await ZOHO.CRM.API.updateRecord({
+        //     Entity: "Accounts",
+        //     APIData: {
+        //         id: account_id,
+        //         TRN_Number:taxRegNo,
+        //         VAT_Status: "Active",
+        //         Tax_Period_VAT: taxPeriodVat,
+        //         Effective_Registration_Date_VAT: effectiveDate,
+        //         st_Qtr_VAT_return_DD: firstQtrReturnDueDate,
+        //         nd_Qtr_VAT_return_DD: secondQtrReturnDueDate,
+        //         rd_Qtr_VAT_return_DD: thirdQtrReturnDueDate,
+        //         VAT_Pay_GIBAN: payGiban,
+        //         th_Qtr_VAT_return_DD: forthQtrReturnDueDate,
+        //     }
+        // });
 
         await uploadFileToCRM();
         await ZOHO.CRM.BLUEPRINT.proceed();
