@@ -2,478 +2,215 @@ let account_id, app_id;
 let cachedFile = null;
 let cachedBase64 = null;
 
+const dropZone = document.getElementById("drop-zone");
+const fileInput = document.getElementById("vat-certificate");
+
+function showModal(type, title, message) {
+  const modal = document.getElementById("custom-modal");
+  const iconSuccess = document.getElementById("modal-icon-success");
+  const iconError = document.getElementById("modal-icon-error");
+  const modalBtn = document.getElementById("modal-close");
+  document.getElementById("modal-title").textContent = title;
+  document.getElementById("modal-message").textContent = message;
+  modalBtn.onclick = closeModal;
+  if (type === "success") { 
+    iconSuccess.classList.remove("hidden"); 
+    iconError.classList.add("hidden");
+    modalBtn.onclick = async () => {
+      modalBtn.disabled = true;
+      modalBtn.textContent = "Finalizing...";
+      try {
+        await ZOHO.CRM.BLUEPRINT.proceed();
+        setTimeout(() => {
+          ZOHO.CRM.UI.Popup.closeReload().then(() => {
+            top.location.reload(true); 
+          }).catch(() => {
+            top.location.href = top.location.href;
+          });
+        }, 600);
+      } catch (e) {
+        ZOHO.CRM.UI.Popup.closeReload();
+      }
+    };
+  } else { 
+    iconSuccess.classList.add("hidden"); 
+    iconError.classList.remove("hidden"); 
+  }
+  modal.classList.remove("hidden");
+  modal.classList.add("flex");
+}
+
+function closeModal() {
+  const modal = document.getElementById("custom-modal");
+  modal.classList.add("hidden");
+  modal.classList.remove("flex");
+}
+
+function clearErrors() { document.querySelectorAll(".error-message").forEach(span => span.textContent = ""); }
+function showError(fieldId, message) { const errorSpan = document.getElementById(`error-${fieldId}`); if (errorSpan) errorSpan.textContent = message; }
+
+function showUploadBuffer(message = "Processing...") {
+  const buffer = document.getElementById("upload-buffer");
+  document.getElementById("upload-title").textContent = message;
+  buffer.classList.remove("hidden");
+}
+
+function hideUploadBuffer() { document.getElementById("upload-buffer").classList.add("hidden"); }
+
+async function closeWidget() { await ZOHO.CRM.UI.Popup.closeReload().catch(err => console.error(err)); }
+
 ZOHO.embeddedApp.on("PageLoad", async (entity) => {
-    try {
-        const entity_id = entity.EntityId;
-
-        const appResponse = await ZOHO.CRM.API.getRecord({
-            Entity: "Applications1",
-            approved: "both",
-            RecordID: entity_id,
-        });
-
-        const applicationData = appResponse.data[0];
-        app_id = applicationData.id;
-
-        // Check for Account ID and handle if missing
-        if (!applicationData.Account_Name || !applicationData.Account_Name.id) {
-            console.error("Application record is missing a linked Account ID. Cannot proceed with data fetch.");
-            // Prevent setting account_id if null/undefined
-            // The submission logic will catch this later, but useful to log now.
-        } else {
-            account_id = applicationData.Account_Name.id;
-        }
-
-        ZOHO.CRM.UI.Resize({ height: "100%"}).then(function(data) {
-            console.log("Resize result:", data);
-        });
-
-    } catch (error) {
-        console.error("PageLoad error:", error);
+  try {
+    const data = await ZOHO.CRM.API.getRecord({ Entity: "Applications1", approved: "both", RecordID: entity.EntityId });
+    const applicationData = data.data[0];
+    app_id = applicationData.id;
+    if (applicationData.Account_Name && applicationData.Account_Name.id) {
+        account_id = applicationData.Account_Name.id;
     }
+    
+  } catch (err) { console.error(err); }
 });
 
-
-function clearErrors() {
-    document.querySelectorAll(".error-message").forEach(span => {
-        span.textContent = "";
-    });
-}
-
-
-function showError(fieldId, message) {
-    const errorSpan = document.getElementById(`error-${fieldId}`);
-    if (errorSpan) errorSpan.textContent = message;
-}
-
-
-function showUploadBuffer() {
-    const buffer = document.getElementById("upload-buffer");
-    const bar = document.getElementById("upload-progress");
-    if (buffer) buffer.classList.remove("hidden");
-    if (bar) {
-        bar.classList.remove("animate");
-        void bar.offsetWidth;
-        bar.classList.add("animate");
-    }
-}
-
-
-function hideUploadBuffer() {
-    const buffer = document.getElementById("upload-buffer");
-    if (buffer) buffer.classList.add("hidden");
-}
-
-
-async function cacheFileOnChange(event) {
-    clearErrors();
-
-    const fileInput = event.target;
-    const file = fileInput?.files[0];
-
-    if (!file) return;
-
-    if (file.size > 10 * 1024 * 1024) {
-        showError("vat-certificate", "File size must not exceed 10MB.");
-        return;
-    }
-
-    showUploadBuffer();
-
-    try {
-        const base64 = await new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result);
-            reader.onerror = reject;
-            reader.readAsArrayBuffer(file);
-        });
-
+async function handleFile(file) {
+  clearErrors();
+  const display = document.getElementById("file-name-display");
+  if (!file) { cachedFile = null; cachedBase64 = null; display.textContent = "Click or Drag & Drop Certificate"; return; }
+  display.textContent = `File: ${file.name}`;
+  try {
+    const reader = new FileReader();
+    reader.onload = function() {
         cachedFile = file;
-        cachedBase64 = base64;
-
-        await new Promise((res) => setTimeout(res, 3000));
-        hideUploadBuffer();
-    } catch (err) {
-        console.error("Error caching file:", err);
-        hideUploadBuffer();
-        showError("vat-certificate", "Failed to read file.");
-    }
+        const result = reader.result;
+        const binary = new Uint8Array(result);
+        let base64 = "";
+        for (let i = 0; i < binary.length; i++) base64 += String.fromCharCode(binary[i]);
+        cachedBase64 = window.btoa(base64);
+    };
+    reader.readAsArrayBuffer(file);
+  } catch (err) { showModal("error", "Error", "Failed to read file."); }
 }
 
+fileInput.addEventListener("change", (e) => handleFile(e.target.files[0]));
+dropZone.addEventListener("dragover", (e) => { e.preventDefault(); dropZone.classList.add("drag-active"); });
+dropZone.addEventListener("dragleave", () => { dropZone.classList.remove("drag-active"); });
+dropZone.addEventListener("drop", (e) => {
+  e.preventDefault();
+  dropZone.classList.remove("drag-active");
+  const files = e.dataTransfer.files;
+  if (files.length) { fileInput.files = files; handleFile(files[0]); }
+});
+dropZone.onclick = function() { fileInput.click(); };
 
-async function uploadFileToCRM() {
-    if (!cachedFile || !cachedBase64) {
-        throw new Error("No cached file");
-    }
-
-    return await ZOHO.CRM.API.attachFile({
-        Entity: "Applications1",
-        RecordID: app_id,
-        File: {
-            Name: cachedFile.name,
-            Content: cachedBase64,
-        },
-    });
-}
-
-
-function complete_trigger() {
-    ZOHO.CRM.BLUEPRINT.proceed();
-}
-
-// Helper to format a Date object into YYYY-MM-DD string
 function formatDate(date) {
     const d = new Date(date);
-    const year = d.getFullYear();
-    const month = (d.getMonth() + 1).toString().padStart(2, '0');
-    const day = d.getDate().toString().padStart(2, '0');
-    return `${year}-${month}-${day}`;
-}
-
-// Helper function to add 3 months and set day to 28
-function addThreeMonthsAndSetDay28(date) {
-    const d = new Date(date);
-    // Add 3 months
-    d.setMonth(d.getMonth() + 3);
-    // Set day to 28. This safely handles month/year rollovers
-    d.setDate(28); 
-    return d;
+    return d.getFullYear() + "-" + (d.getMonth() + 1).toString().padStart(2, '0') + "-" + d.getDate().toString().padStart(2, '0');
 }
 
 function calculateDueDates() {
     const effectiveDateInput = document.getElementById("effective-date");
     const taxPeriodSelect = document.getElementById("tax-period-vat");
-
-    if (!effectiveDateInput.value || !taxPeriodSelect.value) {
-        document.getElementById("first-qtr-return-due-date").value = "";
-        document.getElementById("second-qtr-return-due-date").value = "";
-        document.getElementById("third-qtr-return-due-date").value = "";
-        document.getElementById("forth-qtr-return-due-date").value = "";
-        return;
-    }
-
+    if (!effectiveDateInput.value || !taxPeriodSelect.value) return;
     const effectiveDate = new Date(effectiveDateInput.value);
     const taxPeriodValue = taxPeriodSelect.value;
-    const effectiveYear = effectiveDate.getFullYear();
-    const nextYear = effectiveYear + 1; 
-
-    // Quarter end dates for the EFFECTIVE YEAR
-    const quarterMappings = {
-        "Q1: 1 Jan - 31 Mar, Q2: 1 Apr - 30 Jun, Q3: 1 Jul - 30 Sep, Q4: 1 Oct - 31 Dec": [
-            { endMonth: 2, endDay: 31, isNextYear: false }, // Mar
-            { endMonth: 5, endDay: 30, isNextYear: false }, // Jun
-            { endMonth: 8, endDay: 30, isNextYear: false }, // Sep
-            { endMonth: 11, endDay: 31, isNextYear: false } // Dec
-        ],
-        "Q1: 1 Feb - 30 Apr, Q2: 1 May - 31 Jul, Q3: 1 Aug - 31 Oct, Q4: 1 Nov - 31 Jan": [
-            { endMonth: 3, endDay: 30, isNextYear: false }, // Apr
-            { endMonth: 6, endDay: 31, isNextYear: false }, // Jul
-            { endMonth: 9, endDay: 31, isNextYear: false }, // Oct
-            { endMonth: 0, endDay: 31, isNextYear: true } // Jan (Rolls to next year)
-        ],
-        "Q1: 1 Mar - 31 May, Q2: 1 Jun - 31 Aug, Q3: 1 Sep - 30 Nov, Q4: 1 Dec - 28/29 Feb": [
-            { endMonth: 4, endDay: 31, isNextYear: false }, // May
-            { endMonth: 7, endDay: 31, isNextYear: false }, // Aug
-            { endMonth: 10, endDay: 30, isNextYear: false },// Nov
-            { endMonth: 1, endDay: 28, isNextYear: true } // Feb (Rolls to next year)
-        ]
-    };
-
-    const quarters = quarterMappings[taxPeriodValue];
-
-    // Determine the quarter INDEX (0, 1, 2, or 3) of the effective date
-    const effectiveMonth = effectiveDate.getMonth();
-    let effectiveQuarterIndex;
-    
-    if (taxPeriodValue.includes("Jan - 31 Mar")) {
-        if (effectiveMonth >= 0 && effectiveMonth <= 2) effectiveQuarterIndex = 0; // Q1
-        else if (effectiveMonth >= 3 && effectiveMonth <= 5) effectiveQuarterIndex = 1; // Q2
-        else if (effectiveMonth >= 6 && effectiveMonth <= 8) effectiveQuarterIndex = 2; // Q3
-        else effectiveQuarterIndex = 3; // Q4
-    } else if (taxPeriodValue.includes("Feb - 30 Apr")) {
-        if (effectiveMonth >= 1 && effectiveMonth <= 3) effectiveQuarterIndex = 0; // Q1
-        else if (effectiveMonth >= 4 && effectiveMonth <= 6) effectiveQuarterIndex = 1; // Q2
-        else if (effectiveMonth >= 7 && effectiveMonth <= 9) effectiveQuarterIndex = 2; // Q3
-        else effectiveQuarterIndex = 3; // Q4
-    } else {
-        if (effectiveMonth >= 2 && effectiveMonth <= 4) effectiveQuarterIndex = 0; // Q1
-        else if (effectiveMonth >= 5 && effectiveMonth <= 7) effectiveQuarterIndex = 1; // Q2
-        else if (effectiveMonth >= 8 && effectiveMonth <= 10) effectiveQuarterIndex = 2; // Q3
-        else effectiveQuarterIndex = 3; // Q4
-    }
-
-    if (effectiveQuarterIndex === undefined) {
-        document.getElementById("first-qtr-return-due-date").value = "";
-        document.getElementById("second-qtr-return-due-date").value = "";
-        document.getElementById("third-qtr-return-due-date").value = "";
-        document.getElementById("forth-qtr-return-due-date").value = "";
-        return;
-    }
-
-    // 1. Calculate the FIRST chronological due date based on the effective quarter
-    const firstQuarter = quarters[effectiveQuarterIndex];
-    let yearToUse = effectiveYear;
-    
-    // Adjust year for the first due date calculation if the quarter ends in the next calendar year
-    if (firstQuarter.isNextYear) {
-        yearToUse = nextYear;
-    }
-
-    // Handle leap year for Feb 28/29
-    if (firstQuarter.endMonth === 1 && firstQuarter.endDay === 28) { 
-        if ((yearToUse % 4 === 0 && yearToUse % 100 !== 0) || yearToUse % 400 === 0) {
-            firstQuarter.endDay = 29;
-        }
-    }
-    
-    // Base Date is Quarter End + 28 days
-    let firstDueDate = new Date(yearToUse, firstQuarter.endMonth, firstQuarter.endDay);
-    firstDueDate.setDate(firstDueDate.getDate() + 28);
-
-    // 2. Generate the next four due dates in sequence
-    let sequentialDueDates = [];
-    sequentialDueDates.push(firstDueDate);
-    sequentialDueDates.push(addThreeMonthsAndSetDay28(sequentialDueDates[0]));
-    sequentialDueDates.push(addThreeMonthsAndSetDay28(sequentialDueDates[1]));
-    sequentialDueDates.push(addThreeMonthsAndSetDay28(sequentialDueDates[2]));
-
-    // 3. Assign the sequential dates to the correct QUARTER fields based on the effectiveQuarterIndex
-    
-    // effectiveQuarterIndex: 0=Q1, 1=Q2, 2=Q3, 3=Q4
-    // Field Index Mapping: 0=1st Qtr DD, 1=2nd Qtr DD, 2=3rd Qtr DD, 3=4th Qtr DD
-    
-    let dueDatesForFields = [null, null, null, null];
-    
-    // Example: If effectiveQuarterIndex is 1 (Q2), the 1st calculated date (July 28)
-    // must go into Field Index 1 (2nd Qtr Return Due Date).
-    // The dates then cycle through the fields:
-    // [0] -> Field 1 (2nd Qtr DD)
-    // [1] -> Field 2 (3rd Qtr DD)
-    // [2] -> Field 3 (4th Qtr DD)
-    // [3] -> Field 0 (1st Qtr DD of next cycle)
-
-    // Assign the dates to the field indices based on the cycle start
-    for (let i = 0; i < 4; i++) {
-        // Calculate the target field index, wrapping around after 3 (i.e., (1 + 0) % 4 = 1; (1 + 3) % 4 = 0)
-        let fieldIndex = (effectiveQuarterIndex + i) % 4;
-        dueDatesForFields[fieldIndex] = sequentialDueDates[i];
-    }
-    
-    // 4. Populate the form fields
-    document.getElementById("first-qtr-return-due-date").value = dueDatesForFields[0] ? formatDate(dueDatesForFields[0]) : "";
-    document.getElementById("second-qtr-return-due-date").value = dueDatesForFields[1] ? formatDate(dueDatesForFields[1]) : "";
-    document.getElementById("third-qtr-return-due-date").value = dueDatesForFields[2] ? formatDate(dueDatesForFields[2]) : "";
-    document.getElementById("forth-qtr-return-due-date").value = dueDatesForFields[3] ? formatDate(dueDatesForFields[3]) : "";
+    const quarters = {
+        "Q1: 1 Jan - 31 Mar, Q2: 1 Apr - 30 Jun, Q3: 1 Jul - 30 Sep, Q4: 1 Oct - 31 Dec": [{m:2,d:31},{m:5,d:30},{m:8,d:30},{m:11,d:31}],
+        "Q1: 1 Feb - 30 Apr, Q2: 1 May - 31 Jul, Q3: 1 Aug - 31 Oct, Q4: 1 Nov - 31 Jan": [{m:3,d:30},{m:6,d:31},{m:9,d:31},{m:0,d:31, ny:true}],
+        "Q1: 1 Mar - 31 May, Q2: 1 Jun - 31 Aug, Q3: 1 Sep - 30 Nov, Q4: 1 Dec - 28/29 Feb": [{m:4,d:31},{m:7,d:31},{m:10,d:30},{m:1,d:28, ny:true}]
+    }[taxPeriodValue];
+    const month = effectiveDate.getMonth();
+    let qIdx = (taxPeriodValue.includes("Jan")) ? (month <= 2 ? 0 : month <= 5 ? 1 : month <= 8 ? 2 : 3) : 
+                (taxPeriodValue.includes("Feb")) ? (month >= 1 && month <= 3 ? 0 : month >= 4 && month <= 6 ? 1 : month >= 7 && month <= 9 ? 2 : 3) :
+                (month >= 2 && month <= 4 ? 0 : month >= 5 && month <= 7 ? 1 : month >= 8 && month <= 10 ? 2 : 3);
+    const firstQ = quarters[qIdx];
+    let yr = firstQ.ny ? effectiveDate.getFullYear() + 1 : effectiveDate.getFullYear();
+    let d1 = new Date(yr, firstQ.m, firstQ.d);
+    d1.setDate(d1.getDate() + 28);
+    const getNext = (d) => { let next = new Date(d); next.setMonth(next.getMonth() + 3); next.setDate(28); return next; };
+    let seq = [d1, getNext(d1), getNext(getNext(d1)), getNext(getNext(getNext(d1)))];
+    let res = [null,null,null,null];
+    for(let i=0; i<4; i++) res[(qIdx + i) % 4] = seq[i];
+    document.getElementById("first-qtr-return-due-date").value = formatDate(res[0]);
+    document.getElementById("second-qtr-return-due-date").value = formatDate(res[1]);
+    document.getElementById("third-qtr-return-due-date").value = formatDate(res[2]);
+    document.getElementById("forth-qtr-return-due-date").value = formatDate(res[3]);
 }
 
-
-// Existing setTaxPeriod function, updated to call calculateDueDates
 function setTaxPeriod() {
-    const effectiveDateInput = document.getElementById("effective-date");
-    const taxPeriodSelect = document.getElementById("tax-period-vat");
-
-    if (!effectiveDateInput || !taxPeriodSelect) return;
-
-    const effectiveDate = new Date(effectiveDateInput.value);
-    const effectiveMonth = effectiveDate.getMonth() + 1;
-
-    taxPeriodSelect.value = "";
-
-    const taxPeriods = {
+    const effectiveDateValue = document.getElementById("effective-date").value;
+    if(!effectiveDateValue) return;
+    const effectiveDate = new Date(effectiveDateValue);
+    const month = effectiveDate.getMonth() + 1;
+    const select = document.getElementById("tax-period-vat");
+    const periods = {
         "Q1: 1 Jan - 31 Mar, Q2: 1 Apr - 30 Jun, Q3: 1 Jul - 30 Sep, Q4: 1 Oct - 31 Dec": [1, 4, 7, 10],
         "Q1: 1 Feb - 30 Apr, Q2: 1 May - 31 Jul, Q3: 1 Aug - 31 Oct, Q4: 1 Nov - 31 Jan": [2, 5, 8, 11],
         "Q1: 1 Mar - 31 May, Q2: 1 Jun - 31 Aug, Q3: 1 Sep - 30 Nov, Q4: 1 Dec - 28/29 Feb": [3, 6, 9, 12]
     };
-
-    for (const [key, value] of Object.entries(taxPeriods)) {
-        if (value.includes(effectiveMonth)) {
-            taxPeriodSelect.value = key;
-            break;
-        }
-    }
+    for (const [key, val] of Object.entries(periods)) { if (val.includes(month)) { select.value = key; break; } }
     calculateDueDates();
 }
 
-
-async function update_record(event = null) {
-    if (event) event.preventDefault();
-
-    clearErrors();
-
-    let hasError = false;
-
-    const submitBtn = document.getElementById("submit_button_id");
-    if (submitBtn) {
-        submitBtn.disabled = true;
-        submitBtn.textContent = "Submitting...";
-    }
-
-    const effectiveDate = document.getElementById("effective-date")?.value;
-    const dateOfIssue = document.getElementById("date-of-issue")?.value;
-    const firstQtrReturnDueDate = document.getElementById("first-qtr-return-due-date")?.value;
-    const secondQtrReturnDueDate = document.getElementById("second-qtr-return-due-date")?.value;
-    const thirdQtrReturnDueDate = document.getElementById("third-qtr-return-due-date")?.value;
-    const forthQtrReturnDueDate = document.getElementById("forth-qtr-return-due-date")?.value;
-    const taxRegNo = document.getElementById("tax-registration-number")?.value;
-    const taxPeriodVat = document.getElementById("tax-period-vat")?.value;
-    const payGiban = document.getElementById("pay-giban")?.value;
-    const safe_account_id = account_id ? account_id.trim() : "";
-
-    // Validation checks for all required fields
-    if (!taxRegNo) {
-        showError("tax-registration-number", "Tax Registration Number is required.");
-        hasError = true;
-    }
-    if (!taxPeriodVat) {
-        showError("tax-period-vat", "Tax Period is required.");
-        hasError = true;
-    }
-    if (!effectiveDate) {
-        showError("effective-date", "Effective Registration Date is required.");
-        hasError = true;
-    }
-    if (!dateOfIssue) {
-        showError("date-of-issue", "Date of Issue is required.");
-        hasError = true;
-    }
-    if (!firstQtrReturnDueDate) {
-        showError("first-qtr-return-due-date", "1st Qtr Return Due Date is required.");
-        hasError = true;
-    }
-    if (!secondQtrReturnDueDate) {
-        showError("second-qtr-return-due-date", "2nd Qtr Return Due Date is required.");
-        hasError = true;
-    }
-    if (!thirdQtrReturnDueDate) {
-        showError("third-qtr-return-due-date", "3rd Qtr Return Due Date is required.");
-        hasError = true;
-    }
-    if (!forthQtrReturnDueDate) {
-        showError("forth-qtr-return-due-date", "4th Qtr Return Due Date is required.");
-        hasError = true;
-    }
-    if (!cachedFile || !cachedBase64) {
-        showError("vat-certificate", "Please upload the Corporate Tax Certificate.");
-        hasError = true;
-    }
-
-    if (!payGiban) {
-        showError("pay-giban", "Pay (GIBAN) is required.");
-        hasError = true;
-    }
-
-    if (!safe_account_id) {
-        showError("submit_button_id", "Error: Associated Account ID is missing. Cannot proceed.");
-        hasError = true;
-        console.error("FATAL ERROR: Account ID is missing.");
-    }
-
-    if (hasError) {
-        if (submitBtn) {
-            submitBtn.disabled = false;
-            submitBtn.textContent = "Submit";
-        }
-        return; 
-    }
-
-    try {
-        const subformData = [];
-
-        if (dateOfIssue) {
-            subformData.push({ Type_of_Dates: "Date of Issue", Date: dateOfIssue });
-        }
-
-        if (effectiveDate) {
-            subformData.push({ Type_of_Dates: "Effective Date of Registration", Date: effectiveDate });
-        }
-
-        if (firstQtrReturnDueDate) {
-            subformData.push({ Type_of_Dates: "1st Qtr Return Due Date", Date: firstQtrReturnDueDate });
-        }
-
-        if (secondQtrReturnDueDate) {
-            subformData.push({ Type_of_Dates: "2nd Qtr Return Due Date", Date: secondQtrReturnDueDate });
-        }
-
-        if (thirdQtrReturnDueDate) {
-            subformData.push({ Type_of_Dates: "3rd Qtr Return Due Date", Date: thirdQtrReturnDueDate });
-        }
-
-        if (forthQtrReturnDueDate) {
-            subformData.push({ Type_of_Dates: "4th Qtr Return Due Date", Date: forthQtrReturnDueDate });
-        }
-
-        await ZOHO.CRM.API.updateRecord({
-            Entity: "Applications1",
-            APIData: {
-                id: app_id,
-                Tax_Registration_Number_TRN: taxRegNo,
-                Tax_Period_VAT: taxPeriodVat,
-                Pay_GIBAN: payGiban,
-                Subform_2: subformData,
-                Application_Issuance_Date: dateOfIssue
-            }
-        });
-
-        // Pass ALL required data to the Deluge function via JSON string
-        const func_name = "ta_vatr_complete_to_auth_update_account";
-        const req_data = {
-            "arguments": JSON.stringify({
-                "account_id": safe_account_id,
-                "trn_number": taxRegNo,
-                "tax_period_vat": taxPeriodVat,
-                "effective_reg_vat_dd": effectiveDate,
-                "vat_pay_giban": payGiban,
-                "st_qtr_vat_retrun_dd": firstQtrReturnDueDate,
-                "nd_qtr_vat_retrun_dd": secondQtrReturnDueDate,
-                "rd_qtr_vat_retrun_dd": thirdQtrReturnDueDate,
-                "th_qtr_vat_retrun_dd": forthQtrReturnDueDate,
-
-            })
-        };
-
-        const accountResponse = await ZOHO.CRM.FUNCTIONS.execute(func_name, req_data);
-        console.log("Account Update Function Response:", accountResponse);
-
-        // await ZOHO.CRM.API.updateRecord({
-        //     Entity: "Accounts",
-        //     APIData: {
-        //         id: account_id,
-        //         TRN_Number:taxRegNo,
-        //         VAT_Status: "Active",
-        //         Tax_Period_VAT: taxPeriodVat,
-        //         Effective_Registration_Date_VAT: effectiveDate,
-        //         st_Qtr_VAT_return_DD: firstQtrReturnDueDate,
-        //         nd_Qtr_VAT_return_DD: secondQtrReturnDueDate,
-        //         rd_Qtr_VAT_return_DD: thirdQtrReturnDueDate,
-        //         VAT_Pay_GIBAN: payGiban,
-        //         th_Qtr_VAT_return_DD: forthQtrReturnDueDate,
-        //     }
-        // });
-
-        await uploadFileToCRM();
-        await ZOHO.CRM.BLUEPRINT.proceed();
-        await ZOHO.CRM.UI.Popup.closeReload();
-
-    } catch (error) {
-        console.error("Error on final submit:", error);
-        if (submitBtn) {
-            submitBtn.disabled = false;
-            submitBtn.textContent = "Submit";
-        }
-    }
+async function update_record(event) {
+  event.preventDefault();
+  clearErrors();
+  const trn = document.getElementById("tax-registration-number").value.trim();
+  const period = document.getElementById("tax-period-vat").value;
+  const effective = document.getElementById("effective-date").value;
+  const issue = document.getElementById("date-of-issue").value;
+  const giban = document.getElementById("pay-giban").value.trim();
+  if (!trn || !period || !effective || !issue || !giban || !cachedFile) {
+    if(!trn) showError("tax-registration-number", "Required");
+    if(!period) showError("tax-period-vat", "Required");
+    if(!effective) showError("effective-date", "Required");
+    if(!issue) showError("date-of-issue", "Required");
+    if(!giban) showError("pay-giban", "Required");
+    if(!cachedFile) showError("vat-certificate", "Upload required");
+    return;
+  }
+  const btn = document.getElementById("submit_button_id");
+  btn.disabled = true;
+  btn.textContent = "Updating...";
+  showUploadBuffer("Submitting Application...");
+  try {
+    await ZOHO.CRM.API.updateRecord({
+      Entity: "Applications1",
+      APIData: {
+        id: app_id,
+        Tax_Registration_Number_TRN: trn,
+        Tax_Period_VAT: period,
+        Pay_GIBAN: giban,
+        Subform_2: [
+            { Type_of_Dates: "Date of Issue", Date: issue },
+            { Type_of_Dates: "Effective Date of Registration", Date: effective },
+            { Type_of_Dates: "1st Qtr Return Due Date", Date: document.getElementById("first-qtr-return-due-date").value },
+            { Type_of_Dates: "2nd Qtr Return Due Date", Date: document.getElementById("second-qtr-return-due-date").value },
+            { Type_of_Dates: "3rd Qtr Return Due Date", Date: document.getElementById("third-qtr-return-due-date").value },
+            { Type_of_Dates: "4th Qtr Return Due Date", Date: document.getElementById("forth-qtr-return-due-date").value }
+        ],
+        Application_Issuance_Date: issue
+      }
+    });
+    await ZOHO.CRM.FUNCTIONS.execute("ta_vatr_complete_to_auth_update_account", {
+      arguments: JSON.stringify({
+        account_id, trn_number: trn, tax_period_vat: period, effective_reg_vat_dd: effective,
+        vat_pay_giban: giban, st_qtr_vat_retrun_dd: document.getElementById("first-qtr-return-due-date").value,
+        nd_qtr_vat_retrun_dd: document.getElementById("second-qtr-return-due-date").value,
+        rd_qtr_vat_retrun_dd: document.getElementById("third-qtr-return-due-date").value,
+        th_qtr_vat_retrun_dd: document.getElementById("forth-qtr-return-due-date").value
+      })
+    });
+    await ZOHO.CRM.API.attachFile({ Entity: "Applications1", RecordID: app_id, File: { Name: cachedFile.name, Content: cachedBase64 } });
+    hideUploadBuffer();
+    showModal("success", "Submission Successful", "The application has been updated. Click Ok to refresh.");
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = "Submit";
+    hideUploadBuffer();
+    showModal("error", "Failed", "Check connection and try again.");
+  }
 }
 
-document.getElementById("vat-certificate").addEventListener("change", cacheFileOnChange);
 document.getElementById("record-form").addEventListener("submit", update_record);
 document.getElementById("effective-date").addEventListener("change", setTaxPeriod);
 document.getElementById("tax-period-vat").addEventListener("change", calculateDueDates);
-
-
-async function closeWidget() {
-    await ZOHO.CRM.UI.Popup.closeReload().then(console.log);
-}
-
-
-// Initialize the embedded app
 ZOHO.embeddedApp.init();
