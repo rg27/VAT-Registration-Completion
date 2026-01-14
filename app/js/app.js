@@ -22,12 +22,8 @@ function showModal(type, title, message) {
       try {
         await ZOHO.CRM.BLUEPRINT.proceed();
         setTimeout(() => {
-          ZOHO.CRM.UI.Popup.closeReload().then(() => {
-            top.location.reload(true); 
-          }).catch(() => {
-            top.location.href = top.location.href;
-          });
-        }, 600);
+          window.top.location.href = window.top.location.href;
+        }, 800);
       } catch (e) {
         ZOHO.CRM.UI.Popup.closeReload();
       }
@@ -67,27 +63,36 @@ ZOHO.embeddedApp.on("PageLoad", async (entity) => {
     if (applicationData.Account_Name && applicationData.Account_Name.id) {
         account_id = applicationData.Account_Name.id;
     }
-    
   } catch (err) { console.error(err); }
 });
 
+// Reimplemented attachment handling based on the perfect code
 async function handleFile(file) {
   clearErrors();
   const display = document.getElementById("file-name-display");
   if (!file) { cachedFile = null; cachedBase64 = null; display.textContent = "Click or Drag & Drop Certificate"; return; }
+  
+  if (file.size > 20 * 1024 * 1024) {
+    showError("vat-certificate", "File size must not exceed 20MB.");
+    return;
+  }
+
   display.textContent = `File: ${file.name}`;
+  
   try {
-    const reader = new FileReader();
-    reader.onload = function() {
-        cachedFile = file;
-        const result = reader.result;
-        const binary = new Uint8Array(result);
-        let base64 = "";
-        for (let i = 0; i < binary.length; i++) base64 += String.fromCharCode(binary[i]);
-        cachedBase64 = window.btoa(base64);
-    };
-    reader.readAsArrayBuffer(file);
-  } catch (err) { showModal("error", "Error", "Failed to read file."); }
+    const content = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsArrayBuffer(file);
+    });
+
+    cachedFile = file;
+    cachedBase64 = content;
+  } catch (err) { 
+    console.error(err);
+    showModal("error", "Error", "Failed to read file."); 
+  }
 }
 
 fileInput.addEventListener("change", (e) => handleFile(e.target.files[0]));
@@ -158,7 +163,8 @@ async function update_record(event) {
   const effective = document.getElementById("effective-date").value;
   const issue = document.getElementById("date-of-issue").value;
   const giban = document.getElementById("pay-giban").value.trim();
-  if (!trn || !period || !effective || !issue || !giban || !cachedFile) {
+  
+  if (!trn || !period || !effective || !issue || !giban || !cachedFile || !cachedBase64) {
     if(!trn) showError("tax-registration-number", "Required");
     if(!period) showError("tax-period-vat", "Required");
     if(!effective) showError("effective-date", "Required");
@@ -167,10 +173,12 @@ async function update_record(event) {
     if(!cachedFile) showError("vat-certificate", "Upload required");
     return;
   }
+  
   const btn = document.getElementById("submit_button_id");
   btn.disabled = true;
   btn.textContent = "Updating...";
   showUploadBuffer("Submitting Application...");
+  
   try {
     await ZOHO.CRM.API.updateRecord({
       Entity: "Applications1",
@@ -190,6 +198,7 @@ async function update_record(event) {
         Application_Issuance_Date: issue
       }
     });
+    
     await ZOHO.CRM.FUNCTIONS.execute("ta_vatr_complete_to_auth_update_account", {
       arguments: JSON.stringify({
         account_id, trn_number: trn, tax_period_vat: period, effective_reg_vat_dd: effective,
@@ -199,7 +208,17 @@ async function update_record(event) {
         th_qtr_vat_retrun_dd: document.getElementById("forth-qtr-return-due-date").value
       })
     });
-    await ZOHO.CRM.API.attachFile({ Entity: "Applications1", RecordID: app_id, File: { Name: cachedFile.name, Content: cachedBase64 } });
+    
+    // Final attachment step
+    await ZOHO.CRM.API.attachFile({ 
+      Entity: "Applications1", 
+      RecordID: app_id, 
+      File: { 
+        Name: cachedFile.name, 
+        Content: cachedBase64 
+      } 
+    });
+    
     hideUploadBuffer();
     showModal("success", "Submission Successful", "The application has been updated. Click Ok to refresh.");
   } catch (err) {
