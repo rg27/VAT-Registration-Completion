@@ -4,6 +4,24 @@ let cachedBase64 = null;
 
 const dropZone = document.getElementById("drop-zone");
 const fileInput = document.getElementById("vat-certificate");
+const processToggle = document.getElementById("process-toggle");
+const exemptionFields = document.querySelectorAll(".exemption-conditional");
+const vatCommentsGroup = document.getElementById("vat-comments-group");
+const vatCommentsInput = document.getElementById("vat-comments");
+
+if (processToggle) {
+    processToggle.addEventListener("change", function() {
+        if (this.checked) {
+            exemptionFields.forEach(el => el.classList.add("hidden"));
+            vatCommentsGroup.classList.remove("hidden");
+        } else {
+            exemptionFields.forEach(el => el.classList.remove("hidden"));
+            vatCommentsGroup.classList.add("hidden");
+            calculateDueDates();
+        }
+        clearErrors();
+    });
+}
 
 function showModal(type, title, message) {
   const modal = document.getElementById("custom-modal");
@@ -66,7 +84,6 @@ ZOHO.embeddedApp.on("PageLoad", async (entity) => {
   } catch (err) { console.error(err); }
 });
 
-// Reimplemented attachment handling based on the perfect code
 async function handleFile(file) {
   clearErrors();
   const display = document.getElementById("file-name-display");
@@ -137,7 +154,7 @@ function calculateDueDates() {
     document.getElementById("first-qtr-return-due-date").value = formatDate(res[0]);
     document.getElementById("second-qtr-return-due-date").value = formatDate(res[1]);
     document.getElementById("third-qtr-return-due-date").value = formatDate(res[2]);
-    document.getElementById("forth-qtr-return-due-date").value = formatDate(res[3]);
+    document.getElementById("fourth-qtr-return-due-date").value = formatDate(res[3]);
 }
 
 function setTaxPeriod() {
@@ -158,21 +175,31 @@ function setTaxPeriod() {
 async function update_record(event) {
   event.preventDefault();
   clearErrors();
+  
+  const isExemption = processToggle.checked;
+  const currentPathwayText = isExemption ? "With Exemption" : "Normal";
   const trn = document.getElementById("tax-registration-number").value.trim();
   const period = document.getElementById("tax-period-vat").value;
   const effective = document.getElementById("effective-date").value;
   const issue = document.getElementById("date-of-issue").value;
   const giban = document.getElementById("pay-giban").value.trim();
+  const comments = vatCommentsInput.value.trim();
   
-  if (!trn || !period || !effective || !issue || !giban || !cachedFile || !cachedBase64) {
-    if(!trn) showError("tax-registration-number", "Required");
-    if(!period) showError("tax-period-vat", "Required");
-    if(!effective) showError("effective-date", "Required");
-    if(!issue) showError("date-of-issue", "Required");
-    if(!giban) showError("pay-giban", "Required");
-    if(!cachedFile) showError("vat-certificate", "Upload required");
-    return;
+  let hasError = false;
+
+  if (!trn) { showError("tax-registration-number", "Required"); hasError = true; }
+  if (!effective) { showError("effective-date", "Required"); hasError = true; }
+  if (!cachedFile) { showError("vat-certificate", "Upload required"); hasError = true; }
+
+  if (isExemption) {
+    if (!comments) { showError("vat-comments", "Required"); hasError = true; }
+  } else {
+    if (!period) { showError("tax-period-vat", "Required"); hasError = true; }
+    if (!issue) { showError("date-of-issue", "Required"); hasError = true; }
+    if (!giban) { showError("pay-giban", "Required"); hasError = true; }
   }
+
+  if (hasError) return;
   
   const btn = document.getElementById("submit_button_id");
   btn.disabled = true;
@@ -180,36 +207,60 @@ async function update_record(event) {
   showUploadBuffer("Submitting Application...");
   
   try {
-    await ZOHO.CRM.API.updateRecord({
-      Entity: "Applications1",
-      APIData: {
+    let apiData = {
         id: app_id,
         Tax_Registration_Number_TRN: trn,
-        Tax_Period_VAT: period,
-        Pay_GIBAN: giban,
-        Subform_2: [
+        VAT_Comments: isExemption ? comments : "",
+        vat_process_pathway: currentPathwayText
+    };
+
+    if (!isExemption) {
+        apiData.Tax_Period_VAT = period;
+        apiData.Pay_GIBAN = giban;
+        apiData.Application_Issuance_Date = issue;
+        apiData.Subform_2 = [
             { Type_of_Dates: "Date of Issue", Date: issue },
             { Type_of_Dates: "Effective Date of Registration", Date: effective },
             { Type_of_Dates: "1st Qtr Return Due Date", Date: document.getElementById("first-qtr-return-due-date").value },
             { Type_of_Dates: "2nd Qtr Return Due Date", Date: document.getElementById("second-qtr-return-due-date").value },
             { Type_of_Dates: "3rd Qtr Return Due Date", Date: document.getElementById("third-qtr-return-due-date").value },
-            { Type_of_Dates: "4th Qtr Return Due Date", Date: document.getElementById("forth-qtr-return-due-date").value }
-        ],
-        Application_Issuance_Date: issue
-      }
-    });
+            { Type_of_Dates: "4th Qtr Return Due Date", Date: document.getElementById("fourth-qtr-return-due-date").value }
+        ];
+    } else {
+        apiData.Tax_Period_VAT = "";
+        apiData.Pay_GIBAN = "";
+        apiData.Application_Issuance_Date = null;
+        apiData.Subform_2 = [
+            { Type_of_Dates: "Effective Date of Registration", Date: effective }
+        ];
+    }
+
+    const payload = { "payload": apiData };
+    const processArguments = { "arguments": JSON.stringify(payload) };
+
+    console.log("Update Application Arguments:", payload);
+    const processResult = await ZOHO.CRM.FUNCTIONS.execute("vatr_complete_the_process_v2", processArguments);
+    console.log("Execution standalone function result response:", processResult);
     
-    await ZOHO.CRM.FUNCTIONS.execute("ta_vatr_complete_to_auth_update_account", {
-      arguments: JSON.stringify({
-        account_id, trn_number: trn, tax_period_vat: period, effective_reg_vat_dd: effective,
-        vat_pay_giban: giban, st_qtr_vat_retrun_dd: document.getElementById("first-qtr-return-due-date").value,
-        nd_qtr_vat_retrun_dd: document.getElementById("second-qtr-return-due-date").value,
-        rd_qtr_vat_retrun_dd: document.getElementById("third-qtr-return-due-date").value,
-        th_qtr_vat_retrun_dd: document.getElementById("forth-qtr-return-due-date").value
-      })
-    });
-    
-    // Final attachment step
+    const accountData = {
+        account_id: account_id,
+        trn_number: trn,
+        tax_period_vat: isExemption ? "" : period,
+        effective_reg_vat_dd: effective,
+        vat_pay_giban: isExemption ? "" : giban,
+        st_qtr_vat_retrun_dd: isExemption ? "" : document.getElementById("first-qtr-return-due-date").value,
+        nd_qtr_vat_retrun_dd: isExemption ? "" : document.getElementById("second-qtr-return-due-date").value,
+        rd_qtr_vat_retrun_dd: isExemption ? "" : document.getElementById("third-qtr-return-due-date").value,
+        th_qtr_vat_retrun_dd: isExemption ? "" : document.getElementById("fourth-qtr-return-due-date").value,
+        vat_process_pathway: currentPathwayText,
+        vat_comments: isExemption ? comments : ""
+    };
+    const functionArguments = { "arguments": JSON.stringify(accountData) };
+
+    console.log("Update Account Arguments:", functionArguments);
+    const functionResult = await ZOHO.CRM.FUNCTIONS.execute("ta_vatr_complete_to_auth_update_account_v2", functionArguments);
+    console.log("Execution standalone function result response:", functionResult);
+
     await ZOHO.CRM.API.attachFile({ 
       Entity: "Applications1", 
       RecordID: app_id, 

@@ -11,11 +11,35 @@
     <div class="form-container relative">
         <button class="close-button" type="button" onclick="closeWidget();">×</button>
         <form id="record-form" novalidate>
+            
+            <!-- BRANDED HIGH-CONTRAST SEGMENTED TOGGLE (TLZ THEME) -->
+            <div class="mb-5">
+                <span class="block text-[10px] font-bold uppercase text-slate-500 tracking-wider mb-2">VAT Registration Status</span>
+                <div class="relative flex items-center p-1 bg-[#0E2245] rounded-xl border border-slate-900 w-full h-11 select-none shadow-lg">
+                    
+                    <!-- Hidden Native Checkbox used for logic state -->
+                    <input type="checkbox" id="process-toggle" class="sr-only peer">
+                    
+                    <!-- Branded Sliding Background Indicator -->
+                    <div class="absolute top-[4px] bottom-[4px] left-[4px] w-[calc(50%-4px)] bg-[#00A896] rounded-lg shadow-md transition-all duration-200 ease-out transform peer-checked:translate-x-full z-10"></div>
+                    
+                    <!-- Normal Option Label -->
+                    <label for="process-toggle" class="flex-1 text-center text-[11px] font-extrabold uppercase tracking-widest z-20 cursor-pointer transition-colors duration-200 m-0 py-2.5 text-white peer-checked:text-slate-400">
+                        Normal Registration
+                    </label>
+                    
+                    <!-- With Exemption Option Label -->
+                    <label for="process-toggle" class="flex-1 text-center text-[11px] font-extrabold uppercase tracking-widest z-20 cursor-pointer transition-colors duration-200 m-0 py-2.5 text-slate-400 peer-checked:text-white">
+                        With Exemption
+                    </label>
+                </div>
+            </div>
+
             <label for="tax-registration-number">Tax Registration Number (TRN) <span class="text-red-500">*</span></label>
             <input type="text" id="tax-registration-number" placeholder="Enter TRN" />
             <span class="error-message" id="error-tax-registration-number"></span>
 
-            <label>VAT Tax Certificate <span class="text-red-500">*</span></label>
+            <label>VAT Tax Certificate / Exception Letter of Approval<span class="text-red-500">*</span></label>
             <div id="drop-zone" class="file-upload-box">
                 <div class="flex items-center justify-center space-x-2 pointer-events-none">
                     <span id="file-name-display">Click or Drag & Drop Certificate</span>
@@ -28,20 +52,24 @@
             <input type="date" id="effective-date" />
             <span class="error-message" id="error-effective-date"></span>
 
-            <label for="tax-period-vat">Tax Period VAT <span class="text-red-500">*</span></label>
-            <select id="tax-period-vat">
-                <option value="" disabled selected>Select Tax Period...</option>
-                <option value="Q1: 1 Jan - 31 Mar, Q2: 1 Apr - 30 Jun, Q3: 1 Jul - 30 Sep, Q4: 1 Oct - 31 Dec">Q1: 1 Jan - 31 Mar, Q2: 1 Apr - 30 Jun, Q3: 1 Jul - 30 Sep, Q4: 1 Oct - 31 Dec</option>
-                <option value="Q1: 1 Feb - 30 Apr, Q2: 1 May - 31 Jul, Q3: 1 Aug - 31 Oct, Q4: 1 Nov - 31 Jan">Q1: 1 Feb - 30 Apr, Q2: 1 May - 31 Jul, Q3: 1 Aug - 31 Oct, Q4: 1 Nov - 31 Jan</option>
-                <option value="Q1: 1 Mar - 31 May, Q2: 1 Jun - 31 Aug, Q3: 1 Sep - 30 Nov, Q4: 1 Dec - 28/29 Feb">Q1: 1 Mar - 31 May, Q2: 1 Jun - 31 Aug, Q3: 1 Sep - 30 Nov, Q4: 1 Dec - 28/29 Feb</option>
-            </select>
-            <span class="error-message" id="error-tax-period-vat"></span>
+            <div class="exemption-conditional">
+                <label for="tax-period-vat">Tax Period VAT <span class="text-red-500">*</span></label>
+                <select id="tax-period-vat">
+                    <option value="" disabled selected>Select Tax Period...</option>
+                    <option value="Q1: 1 Jan - 31 Mar, Q2: 1 Apr - 30 Jun, Q3: 1 Jul - 30 Sep, Q4: 1 Oct - 31 Dec">Q1: 1 Jan - 31 Mar, Q2: 1 Apr - 30 Jun, Q3: 1 Jul - 30 Sep, Q4: 1 Oct - 31 Dec</option>
+                    <option value="Q1: 1 Feb - 30 Apr, Q2: 1 May - 31 Jul, Q3: 1 Aug - 31 Oct, Q4: 1 Nov - 31 Jan">Q1: 1 Feb - 30 Apr, Q2: 1 May - 31 Jul, Q3: 1 Aug - 31 Oct, Q4: 1 Nov - 31 Jan</option>
+                    <option value="Q1: 1 Mar - 31 May, Q2: 1 Jun - 31 Aug, Q3: 1 Sep - 30 Nov, Q4: 1 Dec - 28/29 Feb">Q1: 1 Mar - 31 May, Q2: 1 Jun - 31 Aug, Q3: 1 Sep - 30 Nov, Q4: 1 Dec - 28/29 Feb</option>
+                </select>
+                <span class="error-message" id="error-tax-period-vat"></span>
+            </div>
 
-            <label for="date-of-issue">Date of Issue <span class="text-red-500">*</span></label>
-            <input type="date" id="date-of-issue" />
-            <span class="error-message" id="error-date-of-issue"></span>
+            <div class="exemption-conditional">
+                <label for="date-of-issue">Date of Issue <span class="text-red-500">*</span></label>
+                <input type="date" id="date-of-issue" />
+                <span class="error-message" id="error-date-of-issue"></span>
+            </div>
 
-            <div class="quarterly-dates-container">
+            <div class="quarterly-dates-container exemption-conditional">
                 <div class="quarter-field">
                     <label>1st Qtr Due</label>
                     <input type="date" id="first-qtr-return-due-date" class="bg-gray-100" readonly />
@@ -56,13 +84,21 @@
                 </div>
                 <div class="quarter-field">
                     <label>4th Qtr Due</label>
-                    <input type="date" id="forth-qtr-return-due-date" class="bg-gray-100" readonly />
+                    <input type="date" id="fourth-qtr-return-due-date" class="bg-gray-100" readonly />
                 </div>
             </div>
 
-            <label for="pay-giban">Pay (GIBAN) <span class="text-red-500">*</span></label>
-            <input type="text" id="pay-giban" placeholder="Enter GIBAN" />
-            <span class="error-message" id="error-pay-giban"></span>
+            <div class="exemption-conditional">
+                <label for="pay-giban">Pay (GIBAN) <span class="text-red-500">*</span></label>
+                <input type="text" id="pay-giban" placeholder="Enter GIBAN" />
+                <span class="error-message" id="error-pay-giban"></span>
+            </div>
+
+            <div id="vat-comments-group" class="hidden">
+                <label for="vat-comments">VAT Comments <span class="text-red-500">*</span></label>
+                <textarea id="vat-comments" placeholder="Enter exemption justification context..."></textarea>
+                <span class="error-message" id="error-vat-comments"></span>
+            </div>
 
             <button class="submit-button" type="submit" id="submit_button_id">Submit</button>
         </form>
